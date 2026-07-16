@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>BlankApp</title>
+    <script>
+        (function() {
+            var hash = location.hash;
+            location.href = 'rn-bundle'+ (hash.length > 1 ? '/' + hash : '');
+        })();
+    </script>
+</head>
+
+<body>
+</body>
+
+</html>

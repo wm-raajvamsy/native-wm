@@ -1,0 +1,28 @@
+<wm-page name="page1">
+  <wm-mobile-navbar title="Login" backbutton="false" name="mobile_navbar1"></wm-mobile-navbar>
+  <wm-content name="content1">
+      <wm-page-content columnwidth="12" name="page_content1">
+          <wm-login name="loginForm" data-ng-controller="loginFormController">
+              <wm-form errormessage="" captionposition="top" title="" enctype="application/x-www-form-urlencoded" method="post" captionalign="left" name="loggedInUserForm1">
+                  <wm-layoutgrid columns="1" name="layoutgrid1">
+                      <wm-gridrow name="gridrow1">
+                          <wm-gridcolumn columnwidth="12" name="gridcolumn1" xscolumnwidth="12">
+                              <wm-form-field readonly="false" name="j_username" class="app-login-username" displayname="Username" key="j_username" type="string" show="true" widget="text" width="100%" placeholder="Enter username"></wm-form-field>
+                          </wm-gridcolumn>
+                      </wm-gridrow>
+                      <wm-gridrow name="gridrow2">
+                          <wm-gridcolumn columnwidth="12" name="gridcolumn2" xscolumnwidth="12">
+                              <wm-form-field readonly="false" name="j_password" class="app-login-password" displayname="Password" key="j_password" type="string" show="true" widget="text" inputtype="password" width="100%" placeholder="Enter password"></wm-form-field>
+                          </wm-gridcolumn>
+                      </wm-gridrow>
+                      <wm-gridrow name="gridrow3">
+                          <wm-gridcolumn columnwidth="12" name="gridcolumn3" xscolumnwidth="12">
+                              <wm-form-action key="signin" class="form-save btn-success" iconclass="wi wi-save" display-name="Signin" type="submit"></wm-form-action>
+                          </wm-gridcolumn>
+                      </wm-gridrow>
+                  </wm-layoutgrid>
+              </wm-form>
+          </wm-login>
+      </wm-page-content>
+  </wm-content>
+</wm-page>

@@ -1,0 +1,29 @@
+{
+  "author": {
+    "name": "Raaj Vamsy Rayavarapu",
+    "href": "",
+    "email": "raajvamsy.rayavarapu@wavemaker.com"
+  },
+  "buildMode": "DEV",
+  "icon": {
+    "src": "resources/assets/icon.png",
+    "width": 1024,
+    "height": 1024
+  },
+  "id": "com.blankapp",
+  "name": "BlankApp",
+  "platformConfigs": [],
+  "plugins": [],
+  "preferences": {
+    "enableHermes": true,
+    "enableDesignTokens": true,
+    "enableWMUIKit": true
+  },
+	"serverPath": "{{DEVELOPMENT_URL}}",
+  "splash": {
+    "src": "resources/assets/splash.png",
+    "width": 1284,
+    "height": 2778
+  },
+  "version": "0.0.1"
+}
