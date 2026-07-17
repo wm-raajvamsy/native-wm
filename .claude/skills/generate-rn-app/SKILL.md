@@ -1,15 +1,15 @@
 ---
 name: generate-rn-app
-description: Runs `node scripts/build.js generate rn-app` in wavemaker-rn-codegen end-to-end, including the three prerequisite fixes that make it fail silently or error out otherwise — correct unquoted yargs invocation, the mandatory `--production` build step, and pointing npm at WaveMaker's internal registry so the `@wavemaker-ai/custom-widgets-m3` dependency actually resolves. Use this whenever the user wants to generate the local rn-app package from wavemaker-rn-codegen, hits "nothing is happening" with no output, an ENOENT on `dist/package.web.json`, or an ETARGET npm error on `custom-widgets-m3`. Do NOT skip the diagnostic checks below and jump straight to the final commands — confirm each precondition first so a stale registry config or missing production build doesn't silently break the run again.
+description: Runs `node scripts/build.js generate rn-app` in wavemaker-rn-codegen end-to-end, including the prerequisite fixes that make it fail silently or error out otherwise — correct unquoted yargs invocation, the mandatory `--production` build step, pointing npm at WaveMaker's internal registry so the `@wavemaker-ai/custom-widgets-m3` dependency resolves, and the local-iteration path (build custom-widgets-m3 → `yalc publish` → `yalc add`/`yalc push` into rn-codegen → rebuild → generate rn-app) for when you're actively developing custom-widgets-m3 changes rather than consuming a published version. Use this whenever the user wants to generate the local rn-app package from wavemaker-rn-codegen, hits "nothing is happening" with no output, an ENOENT on `dist/package.web.json`, an ETARGET npm error on `custom-widgets-m3`, or wants their local custom-widgets-m3 changes reflected in the generated rn-app without publishing to the registry. Do NOT skip the diagnostic checks below and jump straight to the final commands — confirm each precondition first so a stale registry config, missing production build, or stale yalc link doesn't silently break the run again.
 ---
 
 # Generate rn-app
 
-Produces the `@wavemaker-ai/rn-app` npm package (the one containing web + expo `package-lock.json`/`yarn.lock` for a WaveMaker-generated React Native app) from `wavemaker-rn-codegen`. This command has three independent failure modes that all look different but share one root cause pattern: the script has undocumented prerequisites that aren't obvious from `--help` or its own error output. Verified end-to-end 2026-07-17.
+Produces the `@wavemaker-ai/rn-app` npm package (the one containing web + expo `package-lock.json`/`yarn.lock` for a WaveMaker-generated React Native app) from `wavemaker-rn-codegen`. This command has several failure modes that all look different but share one root cause pattern: the script has undocumented prerequisites that aren't obvious from `--help` or its own error output. Verified end-to-end 2026-07-17.
 
 ## Core Philosophy
 
-Each of the three checks below exists because it silently broke a real run. Don't treat any of them as optional boilerplate — run all three, in order, before the final commands, even if the user says "it worked before" (registry config and local build state can both drift between sessions).
+Each of the checks below exists because it silently broke a real run. Don't treat any of them as optional boilerplate — run them in order before the final commands, even if the user says "it worked before" (registry config, local build state, and yalc links can all drift between sessions). Pick **Step 2** when consuming a real published `custom-widgets-m3` version, or **Step 2a** when the point is to verify local/unpublished `custom-widgets-m3` changes — don't default to Step 2 if the user is mid-iteration on that package, it'll silently build against stale published code.
 
 ## Step 1 — Confirm npm registry points at WaveMaker's internal repo
 
@@ -54,7 +54,45 @@ node scripts/build.js build --production --codegenVersion=<codegenVersion> --run
   ```bash
   ls .yalc/@wavemaker-ai/
   ```
-  If `custom-widgets-m3` (or whichever package failed) isn't listed, either publish it locally first or use a real registry version instead — don't assume the yalc link exists.
+  If `custom-widgets-m3` (or whichever package failed) isn't listed, either publish it locally first (see Step 2a below) or use a real registry version instead — don't assume the yalc link exists.
+
+## Step 2a — Alternative: picking up local custom-widgets-m3 changes via yalc
+
+Use this path instead of Step 2's registry version whenever the goal is to see **uncommitted/unpublished local changes to `custom-widgets-m3`** reflected in the generated rn-app — e.g. after editing a widget and wanting to verify it before publishing. Skipping straight to a registry `--runtimeVersion` here would build against the last *published* version and silently ignore local edits.
+
+1. **Build `custom-widgets-m3` locally.** From its repo root (e.g. `/Users/raajr_500278/wavemaker-studio-frontend/custom-widgets-m3`):
+   ```bash
+   npm run build
+   ```
+   This runs `generate:page-min` → `tsc` → `build:cjs` → `build:esm` → `post-build.js`, producing the compiled CJS/ESM bundles yalc will publish.
+
+2. **Publish it into the local yalc store:**
+   ```bash
+   yalc publish
+   ```
+   This stages the built package into yalc's global store (`~/.yalc`), not yet linked into any consuming project.
+
+3. **Link it into `wavemaker-rn-codegen`.** From the `wavemaker-rn-codegen` root:
+   ```bash
+   yalc add @wavemaker-ai/custom-widgets-m3
+   ```
+   This populates/updates `.yalc/@wavemaker-ai/custom-widgets-m3` and adds/updates the `file:.yalc/@wavemaker-ai/custom-widgets-m3` entry in `package.json` (matching what `build.js:107` falls back to when `--runtimeVersion` is omitted). Confirm it landed:
+   ```bash
+   ls .yalc/@wavemaker-ai/
+   ```
+   **If you already ran `yalc add` once before and are iterating on further local changes**, re-running Step 1 (`npm run build` in custom-widgets-m3) + `yalc push` (from custom-widgets-m3, instead of `publish`) will push the rebuilt package straight into every project that already `yalc add`'d it — faster than repeating `publish` + `add` each time.
+
+4. **Rebuild rn-codegen without `--runtimeVersion`** so it uses the yalc link instead of trying to resolve a registry version:
+   ```bash
+   node scripts/build.js build --production --codegenVersion=<codegenVersion>
+   ```
+
+5. **Generate rn-app** (Step 3 below, unaffected by which path you took in Step 2/2a):
+   ```bash
+   node scripts/build.js generate rn-app
+   ```
+
+Note: this does not require the registry fix in Step 1 for `custom-widgets-m3` itself (the yalc `file:` link bypasses npm resolution for that one package) — but Step 1 is still needed if any *other* dependency in the build resolves from the registry.
 
 ## Step 3 — Run `generate rn-app` with correct (unquoted) argument syntax
 
@@ -81,7 +119,9 @@ Output package: `dist/npm-packages/rn-app/` plus a `.tgz` at `dist/npm-packages/
 ## Recap checklist
 
 - [ ] `npm config get registry` confirmed as WaveMaker's internal repo (Step 1) — fixed if not, before touching anything else
-- [ ] `build --production` run successfully, with a `--runtimeVersion` that either matches a real published version or is omitted in favor of a confirmed local yalc link (Step 2)
-- [ ] `dist/package.web.json` exists after Step 2 (sanity check before Step 3)
+- [ ] Decided Step 2 (registry version) vs Step 2a (local yalc iteration) based on whether local custom-widgets-m3 changes need to be picked up
+- [ ] If Step 2: `build --production` run with a `--runtimeVersion` that matches a real published version
+- [ ] If Step 2a: `custom-widgets-m3` rebuilt (`npm run build`), `yalc publish`'d (or `yalc push`'d on subsequent iterations), `yalc add`'d into rn-codegen and confirmed present in `.yalc/@wavemaker-ai/`, then `build --production` run **without** `--runtimeVersion`
+- [ ] `dist/package.web.json` exists after Step 2/2a (sanity check before Step 3)
 - [ ] `generate rn-app` invoked as two unquoted argv tokens, not one quoted string (Step 3)
 - [ ] Success output (`Generating package-lock.json for expo.` / `... yarn.lock for expo.` / `... package-lock.json for web.`) actually seen — silence means the command didn't match, go back to Step 3

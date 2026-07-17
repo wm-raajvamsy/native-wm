@@ -53,11 +53,13 @@ Copy the BlankApp template project into the issue workspace as the base project 
 
 ## Step 10 — Point the project at local codegen
 
-Update the copied project's config so:
-- `codegenPath` points at the **local codegen build folder** (not a downloaded versioned copy) — this is what lets the pipeline test against the actual code under active development rather than a published package.
+Update the copied project's `ui-build.js` (the file itself, not a separate config — editing it for local dev is expected and fine, despite its "Studio Managed File, DO NOT EDIT" header) so:
 - `baseDir` is set to `/tmp/`.
+- `codegenPath` points at the **local rn-codegen-mars build folder** (`<rn-codegen-mars repo>/build/`) instead of downloading a versioned `@wavemaker-ai/rn-codegen` npm package — this is what lets the pipeline test against the actual code under active local development rather than a published package.
+- `rnApp` (used as `--rnAppPath` in the codegen transpile command) points at a **locally-generated `@wavemaker-ai/rn-app` package** instead of downloading a versioned npm package. Generate it with the **`generate-rn-app`** skill (`~/.agents/skills/generate-rn-app/SKILL.md`) run against rn-codegen-mars — follow its Step 1 (confirm npm registry), Step 2/2a (production build, picking 2a if iterating on local `custom-widgets-m3` changes), and Step 3 (`generate rn-app`) in order. Point `rnApp` at the resulting `dist/npm-packages/rn-app/` directory. Do this **instead of** relying on the project's pinned `wavemaker.app.runtime.ui.version` in `pom.xml` — that version can be (and has been found) stale/unpublished, in which case downloading `@wavemaker-ai/rn-app` at that pin fails with an npm `ETARGET` error.
+- Known gotcha: if `rn-codegen-mars`'s own `package.json` depends on `file:.yalc/@wavemaker-ai/<pkg>` entries, `prepareNpmPackages()` in its `scripts/build.js` copies `./build` to `dist/npm-packages/rn-codegen` but does **not** carry `.yalc/` along — this leaves a dangling `file:` reference that crashes `npm install --package-lock-only` with `ERR_INVALID_ARG_TYPE: paths[1] ... undefined`. Work around it by copying `.yalc/` from the rn-codegen-mars repo root into `dist/npm-packages/rn-codegen/.yalc/` before running the production build (a local-only workaround; do not patch `build.js` itself unless the user explicitly asks for that).
 
-If the exact config file/property names for this project aren't already confirmed, locate them (grep for `codegenPath`/`baseDir` in the copied project, or ask the user) rather than assuming a path.
+If the exact config file/property names for this project aren't already confirmed, locate them (grep for `codegenPath`/`baseDir`/`rnApp` in the copied project, or ask the user) rather than assuming a path.
 
 ## Step 11 — Build the pages via screenshot-to-code
 
