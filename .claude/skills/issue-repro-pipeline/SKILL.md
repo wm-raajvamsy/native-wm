@@ -49,7 +49,7 @@ Copy the BlankApp template project into the issue workspace as the base project 
 
 ## Step 9 — Check the Node version requirement
 
-`ui-build.js`'s `checkNodeVersion()` hard-requires **Node 12.x** — it exits with an error if the running Node version doesn't match. Check the active Node version against this requirement; if it doesn't match, switch to Node 12.x (e.g. via `nvm use 12` or the equivalent version manager) before proceeding. Do not attempt the later build steps on the wrong Node version — `ui-build.js` will simply refuse to run.
+`ui-build.js`'s `checkNodeVersion()` hard-requires **Node 22.11.x** (`isSystemHasValidNodeVersion()` checks the range `[22.11.0, 22.12.0)`, re-verified directly from source 2026-07-17 across all copies in expo-preview-scripts-es) — it exits with an error if the running Node version doesn't match. Check the active Node version against this requirement; if it doesn't match, switch to Node 22.11.x (e.g. via `nvm use 22.11.0` or the equivalent version manager) before proceeding. Do not attempt the later build steps on the wrong Node version — `ui-build.js` will simply refuse to run.
 
 ## Step 10 — Point the project at local codegen
 
@@ -83,7 +83,7 @@ This produces the generated project that actually reproduces the issue/enhanceme
 - [ ] Test-cases report generated via `spec-to-testcases` (Step 6)
 - [ ] App design generated via `spec-to-app-design` (Step 7)
 - [ ] BlankApp template copied into the workspace, with its path confirmed rather than guessed (Step 8)
-- [ ] Node version checked against `ui-build.js`'s 12.x requirement and switched if needed (Step 9)
+- [ ] Node version checked against `ui-build.js`'s 22.11.x requirement and switched if needed (Step 9)
 - [ ] `codegenPath` → local codegen build folder, `baseDir` → `/tmp/` (Step 10)
 - [ ] Pages built via screenshot-to-code, resumed at STEP 2 per the app design's handoff note — not re-analyzed from scratch (Step 11)
 - [ ] `mvn clean package` run with the exact flags above, from the issue workspace (Step 12)
