@@ -21,7 +21,7 @@ What do they want exactly? What are they looking for?
 
 ## 3. Current Codebase Status
 What is the current status of the codebase, related to this?
-<!-- Grounded against real code (rn-codegen-mars / rn-runtime-mars for WaveMaker work, or the actual repo otherwise) — not inferred or assumed. State what exists today and what's missing/broken. -->
+<!-- Grounded against real code read from the local repos (local codegen / local runtime for WaveMaker work, the actual repo otherwise) with file:line cited — not inferred, assumed, or recalled. State what exists today and what's missing/broken. -->
 
 ## 4. Plan
 What is the plan?

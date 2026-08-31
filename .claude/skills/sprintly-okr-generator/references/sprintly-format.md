@@ -44,11 +44,11 @@ Both 4 and 5 are mandatory on every OKR, regardless of Bug/Feature/Enhancement t
 2. **Mobile preview** — `sync` command → open in Expo Go → check Android & iOS → `expo prebuild` → native builds → check Android & iOS again.
 3. **Mobile builds** — `build` command → check Android & iOS builds.
 
-(Full CLI command details, if needed, live in the `wm-rn-cli` MemoryLayer namespace.)
+(For full CLI command details, read the CLI's own docs/source in the local repo.)
 
-## Namespace grounding rule (WaveMaker work)
+## Grounding rule (WaveMaker work)
 
-Ground any technical claim or sub-task involving WaveMaker widgets, codegen, or runtime against the `rn-codegen-mars` and `rn-runtime-mars` namespaces. Never invent file/line details, and never create a new or alternate namespace for WaveMaker code work — those two are the standing home for it.
+Ground any technical claim or sub-task involving WaveMaker widgets, codegen, or runtime by **reading the local codegen and runtime repo files** — always use or reference local codebase files, never MemoryLayer or graphify. Never invent file/line details; cite the `file:line` you actually read, and if you couldn't verify something, say so instead of asserting it.
 
 ## Example OKR (real, as created in Sprintly)
 

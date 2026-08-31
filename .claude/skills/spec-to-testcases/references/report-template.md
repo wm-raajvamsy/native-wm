@@ -9,7 +9,7 @@ ID scheme: `TC-<JIRA-ID>-<CATEGORY>-<NNN>`, category codes: `FUNC`, `EDGE`, `SEC
 
 **Source spec:** `<JIRA-ID>-<short-slug>-plan.md`
 **Type:** Bug | Feature | Enhancement
-**Grounded against:** rn-codegen-mars, rn-runtime-mars, wm-rn
+**Grounded against:** local codegen repo `<path>`, local runtime repo `<path>` — read directly, `file:line` cited per claim
 **Scope:** <one line stating the reported issue/enhancement/feature's actual boundary, pulled from spec Q1/Q2/Q11 — this is what "in scope" means for every case below>
 
 <!-- Report size should match the change's actual size (Core Philosophy, rule 2) — a contained bug fix should produce a short report, not padded-out maximal coverage. Don't apologize for a short report if the change genuinely doesn't warrant more; a correctly-scoped short report is the goal, not a failure to be thorough. -->

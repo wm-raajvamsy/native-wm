@@ -1,6 +1,6 @@
 ---
 name: spec-to-testcases
-description: Turns a finished spec/plan doc (and its OKR, if one exists) into a comprehensive test-cases report for the WaveMaker React Native runtime — a widget library that ships to both Web and native (Android/iOS). Grounds every test case in the actual current implementation via the rn-codegen-mars, rn-runtime-mars, and wm-rn namespaces, and covers functional/happy-path, edge cases, security/hack/bypass attempts, runtime performance (FPS, jank, memory leaks, render time, multi-render/max-render storms), scale & concurrency, cross-platform/environment matrix, and backward-compatibility regression cases. Use this once a JIRA ticket has been spec'd out (e.g. via the sprintly-okr-generator skill) and the user wants "test cases," "a test plan," "QA cases," or asks "what should we test for this" / "write up test cases for WMS-1234" / "what could break this feature" — even if they don't use the word "testcases" explicitly. This is a downstream, chained skill: it expects a spec/plan doc to already exist (or the raw ticket + enough context to write one) — if no spec exists yet, offer to run sprintly-okr-generator first rather than guessing at scope.
+description: Turns a finished spec/plan doc (and its OKR, if one exists) into a comprehensive test-cases report for the WaveMaker React Native runtime — a widget library that ships to both Web and native (Android/iOS). Grounds every test case in the actual current implementation by reading the LOCAL codegen and runtime repo files directly (never MemoryLayer, never graphify), and covers functional/happy-path, edge cases, security/hack/bypass attempts, runtime performance (FPS, jank, memory leaks, render time, multi-render/max-render storms), scale & concurrency, cross-platform/environment matrix, and backward-compatibility regression cases. Use this once a JIRA ticket has been spec'd out (e.g. via the sprintly-okr-generator skill) and the user wants "test cases," "a test plan," "QA cases," or asks "what should we test for this" / "write up test cases for WMS-1234" / "what could break this feature" — even if they don't use the word "testcases" explicitly. This is a downstream, chained skill: it expects a spec/plan doc to already exist (or the raw ticket + enough context to write one) — if no spec exists yet, offer to run sprintly-okr-generator first rather than guessing at scope.
 ---
 
 # Spec-to-Testcases
@@ -25,7 +25,9 @@ In short: go deep within the ticket's actual boundary, and go only as deep as th
 
 1. **The spec/plan doc** (required) — the JIRA-ID-named plan file this ticket already has, or if one doesn't exist yet, enough ticket context to reconstruct the same information. If there's truly nothing to work from, say so and offer to run `sprintly-okr-generator` first rather than inventing scope.
 2. **The OKR / sub-tasks** (if they exist) — useful for cross-checking that every planned code change has at least one test case pointed at it, but the spec doc is the primary source of truth for *what* to test, since it has the edge cases, alternatives, and performance considerations already thought through.
-3. **Real code**, via `recall`/`code` against the **`rn-codegen-mars`**, **`rn-runtime-mars`**, and **`wm-rn`** namespaces — ground test cases in what the component/widget actually does today (current props, current event names, current platform branching), not what the spec assumed or what seems plausible. Never invent a namespace for this — these three are the standing home for WaveMaker RN code knowledge.
+3. **Real code**, read from the **local codegen and runtime repos** — ground test cases in what the component/widget actually does today (current props, current event names, current platform branching), not what the spec assumed or what seems plausible.
+
+   **Always use or reference local codebase files. Do not use MemoryLayer or graphify.** Ask the user for the local codegen and runtime paths if you don't have them; then read the widget/component source, its codegen counterpart, and its existing tests with the normal file tools (Read / Grep / Glob). Cite `file:line` for every claim about current behavior. If a path you need wasn't provided, ask for it — never substitute a remembered or inferred answer.
 
 ## Workflow
 
@@ -33,7 +35,7 @@ In short: go deep within the ticket's actual boundary, and go only as deep as th
 Spec/plan doc (+ OKR if it exists)
       │
       ▼
-Ground against rn-codegen-mars / rn-runtime-mars / wm-rn
+Ground by reading the LOCAL codegen + runtime repo files
       │
       ▼
 Generate test cases across all 7 categories (below)
@@ -44,7 +46,7 @@ Write the report, save as a file
 
 ### Step 1 — Read the spec and ground it in real code
 
-Pull the issue/intent (spec Q1/Q2), the fix approach and files affected (Q5/Q6), the edge cases already identified (Q9), the runtime performance answers already given (Q10), the alternatives considered (Q12), and the backward-compatibility answer (Q14) if the spec follows the `sprintly-okr-generator` template. Then verify against the actual code in `rn-codegen-mars`/`rn-runtime-mars`/`wm-rn` — props, event names, and platform-specific branches change, and a test case built on a stale assumption from the spec is worse than no test case, because it gives false confidence.
+Pull the issue/intent (spec Q1/Q2), the fix approach and files affected (Q5/Q6), the edge cases already identified (Q9), the runtime performance answers already given (Q10), the alternatives considered (Q12), and the backward-compatibility answer (Q14) if the spec follows the `sprintly-okr-generator` template. Then verify against the actual code by **reading the local codegen and runtime repo files** — props, event names, and platform-specific branches change, and a test case built on a stale assumption from the spec is worse than no test case, because it gives false confidence. Record the `file:line` you verified each claim against.
 
 ### Step 1.5 — Run a what-if investigation before drafting any cases
 
@@ -98,7 +100,7 @@ Save the report as `/Users/raajr_500278/raaj-wm/plans/<JIRA-ID>-<short-slug>-tes
 
 - [ ] Spec/plan doc read (or explicitly noted as missing, with an offer to generate one first)
 - [ ] OKR/sub-tasks cross-checked, if they exist
-- [ ] Claims about current behavior grounded in `rn-codegen-mars` / `rn-runtime-mars` / `wm-rn`, not assumed from the spec alone
+- [ ] Claims about current behavior grounded in **local codegen / runtime repo files with `file:line` citations**, not assumed from the spec alone and not from MemoryLayer or graphify
 - [ ] Scope stayed inside the reported issue/enhancement/feature — any thread that drifted outside it was logged as out-of-scope, not turned into a test case (Core Philosophy, rule 1)
 - [ ] Report depth matches the change's actual size — simple/contained changes got a simple/short report, not padded-out maximal coverage (Core Philosophy, rule 2)
 - [ ] What-if investigation run per category, chasing each thread until two consecutive follow-ups produce nothing new (or the thread leaves scope) — logged in the report's Investigation Log, including dismissed scenarios and why

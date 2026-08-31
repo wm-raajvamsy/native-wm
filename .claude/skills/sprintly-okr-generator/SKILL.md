@@ -76,8 +76,9 @@ Read `references/spec-template.md` for the fill-in-the-blank Markdown template a
 
 Questions 3 (current codebase status), 5 (files that will change), and 6 (fix approach) are exactly the kind of claims that are easy to get plausibly wrong. Actually check the code — don't infer behavior from the ticket description or from what similar code "probably" does.
 
-- For anything touching WaveMaker widgets, codegen, or runtime code, ground your research in the `rn-codegen-mars` and `rn-runtime-mars` namespaces (via MemoryLayer `recall`/`code` tools if available, or by reading the actual source otherwise). Don't invent file paths or line numbers, and don't create a new namespace for this — those two are the standing home for WaveMaker code knowledge.
-- For non-WaveMaker projects, just read the actual repo — same principle, different location.
+- **Always use or reference local codebase files. Do not use MemoryLayer or graphify.** For anything touching WaveMaker widgets, codegen, or runtime code, read the **local codegen and runtime repos** directly with the normal file tools (Read / Grep / Glob) and cite `file:line`. Ask the user for those paths if you don't have them — never substitute a remembered or inferred answer for a file you haven't opened.
+- Don't invent file paths or line numbers. If you couldn't verify a claim against a real file, say so explicitly in the spec rather than stating it as fact.
+- For non-WaveMaker projects, same rule — read the actual repo.
 
 ### Question 10 — runtime performance impact
 
