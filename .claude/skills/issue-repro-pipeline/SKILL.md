@@ -1,91 +1,106 @@
 ---
 name: issue-repro-pipeline
-description: Runs the full JIRA-issue-to-runnable-repro-project pipeline, strictly step by step, from workflow.md — workspace creation, MemoryLayer reingest, spec/plan (sprintly-okr-generator), OKR, test-cases report (spec-to-testcases), app design (spec-to-app-design), BlankApp template setup, Node version check, codegen config, screenshot-to-code page build, and the final mvn build. Use this whenever the user wants to take a WaveMaker RN issue (bug/enhancement/feature) all the way from "just a ticket" to "a locally buildable project that reproduces it" — e.g. "run the full workflow for WMS-1234", "take this issue through the whole pipeline", "set up a repro project for this ticket", or references the sequence in workflow.md. Do NOT skip, merge, reorder, or silently auto-decide steps that require the user's input (workspace location, assignee, BlankApp/codegen paths) — ask when the step calls for it, then continue in order.
+description: Runs the no-MemoryLayer-or-graphify issue→repro pipeline from workflow.md — confirm attached spec/tasks/skill-context/test-cases plus local codegen and local runtime, create an issue workspace, derive a per-task sub-workflow with only the steps that task needs, then execute (app design, BlankApp, Node 22.11.x, local codegen/runtime wire via generate-rn-app, screenshot-to-code from STEP 2, mvn package, QA). Use when the user has those attachments and wants a runnable WaveMaker RN repro, or references workflow.md. Always use skills under this repo's .claude/skills/ — never ~/.agents/skills or any home-dir skill path. Do not use MemoryLayer/graphify — always use or reference local codebase files. Do not skip, merge, or silently decide steps that require user input (workspace location, BlankApp path, ambiguous task direction).
 ---
 
-# Issue Repro Pipeline
+# Issue Repro Pipeline (no MemoryLayer or graphify)
 
-This is the master orchestrator over three already-built skills (`sprintly-okr-generator`, `spec-to-testcases`, `spec-to-app-design`) plus the mechanical setup/build steps around them. It exists so a WaveMaker RN issue goes from "just a ticket" to "a locally built project that actually reproduces it, ready to verify a fix on both Web and Mobile" — in one strictly-ordered run, not an ad hoc sequence improvised per ticket.
+Master orchestrator for `workflow.md`. Context comes from **attachments** + **local codegen/runtime paths**. Do not use MemoryLayer or graphify — always use or reference local codebase files.
 
-**Strict order, no skipping.** Each step below depends on the one before it. Do not jump ahead, do not run two steps out of order, and do not silently decide something the step says to ask the user about. If a step is blocked (missing input, unconfirmed path), stop and ask rather than guessing and continuing.
+**Local skills only.** Resolve every skill from this repo’s `.claude/skills/…`. Never `~/`, `~/.agents/skills/`, `~/.agent/skills/`, or `~/.claude/skills/`.
 
-The three chained skills already carry the mandatory Core Philosophy (scope discipline + proportional depth + WM low-code philosophy) — this pipeline doesn't restate it, it just makes sure each skill actually gets invoked in the right order with the right inputs.
+| Need | Local skill |
+| --- | --- |
+| This orchestrator | `.claude/skills/issue-repro-pipeline/` |
+| App design | `.claude/skills/spec-to-app-design/` |
+| Test cases (only if user asks to regenerate) | `.claude/skills/spec-to-testcases/` |
+| Spec/OKR (only if user asks to regenerate) | `.claude/skills/sprintly-okr-generator/` |
+| Local rn-app package | `.claude/skills/generate-rn-app/` |
+| Widget vocabulary | `.claude/skills/native_mobile/` |
+| WM UI helpers | `.claude/skills/common/` |
 
-## Step 1 — Get the issue, create the workspace
+Screenshot/Figma → markup: use project Cursor skills (`screenshot-to-wavemaker`, `figma-to-wavemaker`, …), not home-dir copies.
 
-Get the JIRA ticket ID/details from the user. **Ask where the local workspace for this issue should live** — do not assume or reuse a path from a previous ticket. Create that folder if it doesn't exist. This is the "issue workspace" every later step saves into.
+**Strict order within a chosen path.** Do not jump ahead or invent missing attachments. If blocked, ask.
 
-## Step 2 — Mandatory: refresh MemoryLayer grounding
+---
 
-Before any planning happens, make sure the grounding is current:
-- Reingest `rn-codegen-mars` and `rn-runtime-mars` against their actual repo locations (check the ingest-registry memory first — skip if the git SHA hasn't changed, per the standing ingest rule; otherwise re-ingest).
-- If this investigation surfaces any new architectural understanding (a pattern, a gotcha, a file relationship not already captured), update the `wm-rn` namespace with it before moving on — don't let it live only in this session's context.
+## Step 1 — Confirm attachments + workspace
 
-This step is mandatory even if it feels redundant — the spec in Step 3 is only as good as the grounding behind it, and stale grounding is exactly what produces a confidently-wrong spec.
+Require all of:
 
-## Step 3 — Generate the spec/plan
+1. Spec
+2. Tasks / OKR (TODO + QA)
+3. Skill context (complete issue context)
+4. Test cases
+5. Local codegen path
+6. Local runtime path
 
-Invoke `sprintly-okr-generator`. Produce the 16-question spec/plan doc, save it in the issue workspace (not the default `/Users/raajr_500278/raaj-wm/plans/` unless that IS the workspace the user chose in Step 1 — the workspace from Step 1 is now the canonical save location for every artifact in this pipeline).
+Ask for the **issue workspace** location. Create it. Copy/save every attachment into the workspace.
 
-## Step 4 — Ask assignment, generate the OKR
+## Step 2 — Understand before implementing
 
-Ask the user who this should be assigned to (or, if the spec surfaced multiple viable directions/approaches in its Alternatives section, confirm which one to proceed with before drafting the OKR — don't silently pick the "recommended" option without a nod). Then generate the OKR via `sprintly-okr-generator`'s Step 3, saved in the issue workspace.
+Read spec, tasks, skill context, and test cases fully. Treat the attached skill context as the authority for paths/gotchas (replaces MemoryLayer). Brief the user: goal, ordered tasks, codegen/runtime paths. Do not proceed until this reading is done.
 
-## Step 5 — Confirm spec/plan + OKR are saved in the workspace
+## Step 3 — Create one sub-workflow per task
 
-Explicit checkpoint: verify both files actually exist in the issue workspace from Steps 3–4 before proceeding — this is the "plan before OKR, OKR before test cases" ordering the whole pipeline depends on.
+For **each** task in the attached task list, write `subworkflows/<task-id-or-slug>.md` in the workspace with:
 
-## Step 6 — Generate the test-cases report
+- task title + one-line goal
+- inputs needed
+- **only** the Phase C steps from `workflow.md` that this task needs
+- acceptance checks from matching test cases / QA sub-tasks
+- local skill paths to invoke
 
-Invoke `spec-to-testcases` using the spec/plan from Step 3 (and the OKR from Step 4, if useful for cross-checking). This produces the full 7-category report — functional, edge cases, security/hacks/bypass, runtime performance (FPS, jank, memory leaks, render time, multi-render/max-render storms), scale & concurrency, cross-platform matrix, backward compatibility — scoped and proportioned per that skill's own Core Philosophy. Save in the issue workspace.
+Slim aggressively (see `workflow.md` Phase B table). Do not run the full menu for every task. Confirm with the user when cutting steps is ambiguous; otherwise execute in task order.
 
-## Step 7 — Generate the app design
+## Step 4 — Execute each sub-workflow (menu)
 
-Invoke `spec-to-app-design` using the spec/plan (Step 3) and test-cases report (Step 6). This produces the WaveMaker widget-level Design Plan + Layout Plan — single- or multi-page, reproducing the issue/enhancement/feature and mapping every test case to a page/widget/state (or explicitly marking it not-reproducible-via-UI). Save in the issue workspace.
+Only run the steps listed in that task’s sub-workflow.
 
-## Step 8 — Copy the BlankApp template into the workspace
+### App design (if needed and not attached)
 
-Copy the BlankApp template project into the issue workspace as the base project the fix will be reproduced and verified in. **If the BlankApp template's location isn't already known/confirmed, ask the user for it** rather than guessing a path — this is a project-specific location, not something to hardcode into this skill.
+Invoke `.claude/skills/spec-to-app-design/` with the attached spec + test cases. Save in the workspace. Do **not** regenerate spec/tasks/test cases unless the user asks.
 
-## Step 9 — Check the Node version requirement
+### BlankApp
 
-`ui-build.js`'s `checkNodeVersion()` hard-requires **Node 22.11.x** (`isSystemHasValidNodeVersion()` checks the range `[22.11.0, 22.12.0)`, re-verified directly from source 2026-07-17 across all copies in expo-preview-scripts-es) — it exits with an error if the running Node version doesn't match. Check the active Node version against this requirement; if it doesn't match, switch to Node 22.11.x (e.g. via `nvm use 22.11.0` or the equivalent version manager) before proceeding. Do not attempt the later build steps on the wrong Node version — `ui-build.js` will simply refuse to run.
+Copy this repo’s `BlankApp/` (or the path the user gives) into the workspace. Ask if unsure.
 
-## Step 10 — Point the project at local codegen
+### Node version
 
-Update the copied project's `ui-build.js` (the file itself, not a separate config — editing it for local dev is expected and fine, despite its "Studio Managed File, DO NOT EDIT" header) so:
-- `baseDir` is set to `/tmp/`.
-- `codegenPath` points at the **local rn-codegen-mars build folder** (`<rn-codegen-mars repo>/build/`) instead of downloading a versioned `@wavemaker-ai/rn-codegen` npm package — this is what lets the pipeline test against the actual code under active local development rather than a published package.
-- `rnApp` (used as `--rnAppPath` in the codegen transpile command) points at a **locally-generated `@wavemaker-ai/rn-app` package** instead of downloading a versioned npm package. Generate it with the **`generate-rn-app`** skill (`~/.agents/skills/generate-rn-app/SKILL.md`) run against rn-codegen-mars — follow its Step 1 (confirm npm registry), Step 2/2a (production build, picking 2a if iterating on local `custom-widgets-m3` changes), and Step 3 (`generate rn-app`) in order. Point `rnApp` at the resulting `dist/npm-packages/rn-app/` directory. Do this **instead of** relying on the project's pinned `wavemaker.app.runtime.ui.version` in `pom.xml` — that version can be (and has been found) stale/unpublished, in which case downloading `@wavemaker-ai/rn-app` at that pin fails with an npm `ETARGET` error.
-- Known gotcha: if `rn-codegen-mars`'s own `package.json` depends on `file:.yalc/@wavemaker-ai/<pkg>` entries, `prepareNpmPackages()` in its `scripts/build.js` copies `./build` to `dist/npm-packages/rn-codegen` but does **not** carry `.yalc/` along — this leaves a dangling `file:` reference that crashes `npm install --package-lock-only` with `ERR_INVALID_ARG_TYPE: paths[1] ... undefined`. Work around it by copying `.yalc/` from the rn-codegen-mars repo root into `dist/npm-packages/rn-codegen/.yalc/` before running the production build (a local-only workaround; do not patch `build.js` itself unless the user explicitly asks for that).
+`ui-build.js` hard-requires **Node 22.11.x**. Switch before any build if needed.
 
-If the exact config file/property names for this project aren't already confirmed, locate them (grep for `codegenPath`/`baseDir`/`rnApp` in the copied project, or ask the user) rather than assuming a path.
+### Local codegen + local runtime
 
-## Step 11 — Build the pages via screenshot-to-code
+Edit the copied project’s `ui-build.js`:
 
-Using the app design from Step 7, invoke `screenshot-to-wavemaker-mobile` (or `figma-to-wavemaker-mobile`) **starting at STEP 2 (Generate Variables)** — per `spec-to-app-design`'s own handoff note, the app design document already IS that skill's Phase 1 analysis / STEP 0 / STEP 1 output, so do not re-run visual analysis on it. This builds the actual page(s) in the copied project inside the issue workspace.
+- `baseDir` → `/tmp/`
+- `codegenPath` → `<LOCAL_CODEGEN>/build/`
+- `rnApp` → local package from `.claude/skills/generate-rn-app/` run against **LOCAL_CODEGEN** (follow that skill’s Step 1 → 2/2a → 3). Point at `dist/npm-packages/rn-app/`. Do not trust a stale `wavemaker.app.runtime.ui.version` npm pin.
+- Ensure codegen consumes **LOCAL_RUNTIME** when the task needs runtime changes (yalc / local dep path per `generate-rn-app`).
 
-## Step 12 — Run the build
+Gotcha: if codegen depends on `file:.yalc/@wavemaker-ai/...`, copy `.yalc/` into `dist/npm-packages/rn-codegen/.yalc/` when `prepareNpmPackages()` did not.
 
-From the issue workspace's copied project, run:
+### Pages
+
+From the App Design, run screenshot/figma → wavemaker **starting at STEP 2**. Do not re-run visual analysis.
+
+### Maven
 
 ```bash
 mvn clean package -Dprofile.props.file="development.properties" -Dmobile.serverUrl="http://NOSERVERREQUIRED.com"
 ```
 
-This produces the generated project that actually reproduces the issue/enhancement/feature, ready to verify against once the real fix lands — re-run this same build after the fix to confirm it resolves what the spec, test cases, and app design set out to reproduce.
+### Verify
+
+Run that task’s QA sub-tasks / relevant test cases. Re-package after the real fix.
+
+---
 
 ## Recap checklist
 
-- [ ] Issue + workspace location confirmed with the user (Step 1) — not assumed or reused from a prior ticket
-- [ ] `rn-codegen-mars`/`rn-runtime-mars` reingested (or confirmed unchanged via ingest-registry), `wm-rn` updated with any new findings (Step 2) — done before the spec, not after
-- [ ] Spec/plan generated via `sprintly-okr-generator`, saved in the issue workspace (Step 3)
-- [ ] Assignment/direction confirmed with the user before the OKR was drafted (Step 4)
-- [ ] Spec/plan + OKR both actually present in the issue workspace (Step 5)
-- [ ] Test-cases report generated via `spec-to-testcases` (Step 6)
-- [ ] App design generated via `spec-to-app-design` (Step 7)
-- [ ] BlankApp template copied into the workspace, with its path confirmed rather than guessed (Step 8)
-- [ ] Node version checked against `ui-build.js`'s 22.11.x requirement and switched if needed (Step 9)
-- [ ] `codegenPath` → local codegen build folder, `baseDir` → `/tmp/` (Step 10)
-- [ ] Pages built via screenshot-to-code, resumed at STEP 2 per the app design's handoff note — not re-analyzed from scratch (Step 11)
-- [ ] `mvn clean package` run with the exact flags above, from the issue workspace (Step 12)
+- [ ] All six inputs present; workspace created; artifacts saved
+- [ ] Spec/tasks/skill context/test cases understood; no MemoryLayer or graphify used — local codebase files referenced
+- [ ] One sub-workflow per task with only necessary steps
+- [ ] Every skill path is `.claude/skills/...` (local), never `~/...`
+- [ ] Selected steps executed per sub-workflow (Node, local codegen/runtime, pages, mvn, QA)
