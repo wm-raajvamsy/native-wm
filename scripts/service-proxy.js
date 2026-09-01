@@ -55,6 +55,29 @@ function launchServiceProxy(previewUrl, proxyPort, webPreviewPort) {
                         "*": ""
                     }
                 });
+            } else if (req.url.includes('/services/') || req.url.includes('/resources/')) {
+                // WMS-EXPOROUTER: Expo Router's dev server serves each page at its own route
+                // path (e.g. /Main), and appConfig.url there is same-origin without the classic
+                // web build's /_/_ prefix trick (that trick relies on the served page's own URL
+                // containing /rn-bundle, which Expo Router's routes never do) — so backend calls
+                // (services AND resources — e.g. i18n locale files) arrive here as
+                // /Main/services/servicedefs or /Main/resources/i18n/en.json instead of
+                // /_/_/services/servicedefs. Strip everything before whichever marker is present
+                // so this still forwards to previewUrl's real API path, the same target the
+                // /_/_ branch above reaches for classic mode. Found by actually running an Expo
+                // Router app through this proxy, not assumed — /resources/ was added after
+                // /services/ alone left locale-file loading broken the same way.
+                const marker = req.url.includes('/services/') ? '/services/' : '/resources/';
+                req.url = req.url.substring(req.url.indexOf(marker));
+                proxy.web(req, res, {
+                    target: previewUrl,
+                    secure: false,
+                    xfwd: false,
+                    changeOrigin: true,
+                    cookiePathRewrite: {
+                        "*": ""
+                    }
+                });
             } else {
                 req.headers.origin = `http://localhost:${webPreviewPort}`;
                 const url = req.url;
