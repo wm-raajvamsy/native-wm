@@ -45,6 +45,7 @@ Always resolve skills from **this repo**, never from a home-dir path (`~/`, `~/.
 | Spec → app design | `.claude/skills/spec-to-app-design/` |
 | Generate local rn-app (**mandatory** before any preview build) | `.claude/skills/generate-rn-app/` |
 | Generate web + mobile previews (direct codegen transpile) | `.claude/skills/build-web-mobile-previews/` |
+| Perf / debug tracker (**mandatory** — inject, verify, capture, analyse) | `.claude/skills/perf-debug-tracker/` |
 
 Each row above is a real invocable skill (has a `SKILL.md`).
 
@@ -78,6 +79,11 @@ Note the real filenames carry a **`-mobile` suffix** (`screenshot-to-wavemaker-m
    - add comments only on important functions or variables — one-liners
 5. **No assumptions on failures.** Root-cause it, validate the hypothesis with evidence, then fix (Phase H).
 6. **Local skill paths only** — `.claude/skills/...`.
+7. **The perf/debug tracker is mandatory, on web and mobile.** Every app this workflow builds is
+   instrumented with `perf-tracker/` before generation, the patch is verified present after
+   generation on **both** targets, and every runtime finding — bug or slowness — is **grounded in
+   captured tracker data**, never in source reading alone. Diagnosing a runtime problem without a
+   captured log is not acceptable; see `.claude/skills/perf-debug-tracker/`.
 
 ---
 
@@ -260,6 +266,19 @@ Set up **once per flow**, then re-verify at each task:
 
 **D3 — Local rn-app — MANDATORY.** Run `.claude/skills/generate-rn-app/` against **LOCAL_CODEGEN**. Output: `<LOCAL_CODEGEN>/dist/npm-packages/rn-app/`. Never a registry download. If `generate rn-app` printed nothing, it did not run.
 
+**D4 — Inject the perf/debug tracker — MANDATORY, before any generate.** Per `.claude/skills/perf-debug-tracker/`:
+
+```bash
+cp perf-tracker/wm-performance-tracker.js \
+   <PROJECT>/src/main/webapp/resources/files/wm-performance-tracker.js
+```
+
+`src/main/webapp/resources/files/` already exists in `BlankApp/` and is **source**, so codegen copies it into the generated app — this edit is made once and survives every re-transpile.
+
+The matching `require` + `WMPerf.enable()/trackApp/trackLib/trackAppVars` calls go into the **generated** `App.js`, so they are applied in Phase E (step 3) and re-applied after every generate — codegen rewrites that file each time. Exact snippet: `perf-tracker/inject-snippet.md`.
+
+An app generated without this patch produces **zero** diagnostic data and makes every later finding guesswork. Do not skip it because the task "isn't a perf task" — it is the debug instrument too.
+
 **Per-task re-checks before Phase E** — the shared state carries over, so confirm rather than assume:
 
 | Re-check | Why |
@@ -268,6 +287,7 @@ Set up **once per flow**, then re-verify at each task:
 | **rn-app regenerated after that codegen rebuild?** | rn-app is built *from* codegen — a codegen edit leaves it stale, and transpile consumes the stale one silently |
 | Local runtime still consumed by the codegen build? | otherwise a runtime change isn't in the build at all |
 | `generated-web/` / `generated-mobile/` present and from when? | they persist across tasks — an old timestamp means stale output |
+| Tracker patch still in `src/main/webapp/resources/files/`? | it is source, so it should persist — but confirm rather than assume |
 
 Known gotcha: if codegen `package.json` has `file:.yalc/@wavemaker-ai/...` deps, copy `.yalc/` into `dist/npm-packages/rn-codegen/.yalc/` before the production install if `prepareNpmPackages()` didn't.
 
@@ -294,9 +314,27 @@ Commit.
 
    `--page=""` transpiles every page; pass a page name to narrow a re-generate during a tight fix loop.
 
-4. **Check the generated folders after.** Both requested folders exist with **fresh timestamps**, and the change you just made is actually present in the generated source (grep for the widget/page/prop you touched). Commit, and note both output paths in `README.md`.
+4. **Check the generated folders after.** Both requested folders exist with **fresh timestamps**, and the change you just made is actually present in the generated source (grep for the widget/page/prop you touched).
 
    *"My fix isn't showing up", in order:* codegen rebuilt? → `generate-rn-app` re-run after that rebuild? → generated folder wiped before regenerating? → correct `--profile` and `<GENERATED_PATH>`?
+
+5. **Verify the tracker patch — MANDATORY, both targets.** Codegen **rewrites `App.js` on every transpile**, so the require is wiped by each generate. Re-add it and check all three, for web *and* mobile:
+
+   ```bash
+   for d in generated-web generated-mobile; do
+     echo "── $d"
+     ls  "<PROJECT>/$d/assets/resources/files/wm-performance-tracker.js" >/dev/null 2>&1 \
+         && echo "  patch file: OK" || echo "  patch file: MISSING"
+     grep -q "wm-performance-tracker" "<PROJECT>/$d/App.js" \
+         && echo "  require:    OK" || echo "  require:    MISSING — re-add"
+     grep -q "WMPerf.enable"          "<PROJECT>/$d/App.js" \
+         && echo "  enable():   OK" || echo "  enable():   MISSING — re-add"
+   done
+   ```
+
+   The require goes at the **very top** of the generated `App.js`, with `enable()`/`trackApp`/`trackLib`/`trackAppVars` in its `componentDidMount` — snippet in `perf-tracker/inject-snippet.md`. **Three OKs on both targets, or stop and fix before Phase G.** Running an app with a failed check means the whole verification pass produces no diagnostic data.
+
+6. Commit, and note both output paths plus the patch-check result in `README.md`.
 
 ### Phase F — Review + tests
 
@@ -329,25 +367,55 @@ npx expo run:android
 
 Then drive and inspect the app with `adb` (`adb shell input …`, `adb logcat`, `adb shell dumpsys`, screenshots). **iOS:** same shape — `npm i`, then `npx expo run:ios`, driven via the simulator tooling.
 
+**Capture the tracker log while you drive — MANDATORY, both platforms.** This is the evidence every finding in Phases G and H rests on. Per `.claude/skills/perf-debug-tracker/`:
+
+- **Mobile (Android):**
+  ```bash
+  adb logcat -c && adb logcat -s ReactNativeJS | grep --line-buffered '\[WM-PERF\]' > 05-logs/perf-mobile.log
+  ```
+- **Web:** DevTools → Console → filter `[WM-PERF]` → right-click → *Save as…* → `05-logs/perf-web.log`.
+
+First thing to confirm in either log is `{"type":"META","event":"ENABLED",...}`. **No `META/ENABLED` means the patch never executed** — go back to Phase E step 5; do not proceed and do not treat an empty log as "nothing happened".
+
+Then turn each capture into a report:
+
+```bash
+node perf-tracker/generate-perf-viewer.js 05-logs/perf-mobile.log 05-logs/perf-mobile.html
+```
+
 **Verification rule — step by step, never the whole flow at once:**
 
 1. Split the flow into named sub-verifications (one interaction / one assertion each).
 2. Run them one at a time, in order.
-3. Capture evidence per step — screenshot, `adb` output, log excerpt — into `05-logs/`.
+3. Capture evidence per step — screenshot, `adb` output, **tracker log excerpt / viewer reading** — into `05-logs/`.
 4. Record pass/fail per sub-verification in the task's file before moving to the next.
 5. Only after all sub-verifications pass does the task count as verified on that platform.
 
-Commit the logs and the verification table.
+A sub-verification about anything the app *does at runtime* — timing, render counts, API calls, navigation — is evidenced by **tracker events with their `ms` values**, not by "looked fine". Screenshots prove appearance; the tracker proves behaviour.
+
+Commit the logs, the generated viewer HTML, and the verification table.
 
 ### Phase H — Errors: root cause → fix → re-verify → close
 
 When anything fails:
 
-1. **Find out why it happened in the first place.** No assumptions — form a hypothesis, then **validate it with evidence** (logs, minimal repro, breakpoint, bisect). An unvalidated hypothesis is not a root cause.
+1. **Find out why it happened in the first place.** No assumptions — form a hypothesis, then **validate it with evidence**. For anything the app does at runtime, that evidence is the **tracker capture** first (`.claude/skills/perf-debug-tracker/`), before reading source and reasoning about what probably happens:
+
+   | Symptom | What to read in the capture |
+   | --- | --- |
+   | Slow to become usable | `summary` TTFI + its `ttfiBasis`; the API / script / re-render split |
+   | Unaccounted gap | per-widget `COMPONENT/RENDER`; a gap between `APP/REFRESH_END` and the next `MOUNT`/`UPDATE` is native-thread work, not JS |
+   | Rendering when it shouldn't | `MEMO/WATCHER_DRIVEN_RENDER` vs `MEMO/SCU_BAIL`; `COMPONENT/SETSTATE_QUEUED` `trigger` |
+   | Duplicate / unexpected API | `VAR`/`ACTION` `INVOKE_START`→`INVOKE_END` pairs, `DATASETWRITE` |
+   | Binding cost | `WATCHER/CHECK_START`→`CHECK_END` `ms` with `count` |
+   | Navigation cost | `NAV/PATH` `branch`, `NAV/TRANSITION_END` vs `MOUNT` |
+   | Crash | `ERROR/CAUGHT` with `componentStack` |
+
+   An unvalidated hypothesis is not a root cause, and neither is one argued purely from reading code when a capture could have shown it.
 2. **Fix in the generated folder first.** Confirm the fix actually works there.
 3. **Then port the real fix into the source codebase** (codegen / runtime), following the Phase B rules.
 4. **Re-run the affected phases** — normally D's re-checks → E (wipe the generated folder, re-transpile) → F → G — and re-verify step by step. After a codegen fix, that means rebuild codegen **and** re-run `generate-rn-app` before transpiling, or you'll re-verify against the stale rn-app.
-5. Repeat until clean. Record root cause + fix + evidence in the task's file.
+5. Repeat until clean. Record root cause + fix + evidence in the task's file, citing the concrete tracker events and `ms` values the conclusion rests on. **Re-verify from a fresh capture on both platforms** — a fix confirmed on mobile is not confirmed on web.
 6. **Get the user's confirmation**, then mark the task **closed** in `README.md`.
 7. Commit.
 
@@ -373,11 +441,12 @@ Sub-task workflow: only after a task is closed do you start the next task's Phas
 - [ ] A: per-task context + scoped mini artifacts
 - [ ] B: **app design first** — one design for the whole requirement, common to web and mobile, authored for screenshot-to-code STEP 2, every test case mapped
 - [ ] C: implemented under the strict rules (minimal, no duplicate logic, reuse, planned, one-line comments only)
-- [ ] D: **one shared BlankApp** for the whole flow (no second app per task), Node 22.11.x checked manually, **`generate-rn-app` run (mandatory)**, per-task re-checks done — codegen rebuilt, **rn-app regenerated after it**, local runtime consumed, generated-folder timestamps noted
+- [ ] D: **one shared BlankApp** for the whole flow (no second app per task), Node 22.11.x checked manually, **`generate-rn-app` run (mandatory)**, **tracker patch copied into `src/main/webapp/resources/files/` (mandatory, before generating)**, per-task re-checks done — codegen rebuilt, **rn-app regenerated after it**, local runtime consumed, generated-folder timestamps noted
 - [ ] E: pages built from the app design into the shared `src/main/webapp`; generated folders checked (and wiped if anything changed) then **transpiled twice** — `--profile="expo-web-preview"` → `generated-web`, `--profile="expo-preview"` → `generated-mobile`; no `mvn`, no `ui-build.js` edits, no rename; folders re-checked after for fresh timestamps and the change actually present
+- [ ] E5: **tracker patch verified present on BOTH targets** — patch file + `require` + `WMPerf.enable` in `generated-web/App.js` *and* `generated-mobile/App.js` (codegen wipes the require on every transpile — re-add it); three OKs or stop
 - [ ] F: implementation reviewed; unit tests written/updated and green; runtime test cases updated
-- [ ] G: web run from `generated-web/` (`npx expo start --web` + service proxy) and mobile run from `generated-mobile/` (`npx expo run:android` + adb); step-by-step sub-verifications with evidence in `05-logs/`
-- [ ] H: every failure root-caused with validated evidence; fixed in generated folder then in the codebase; re-verified; user confirmed; task closed
+- [ ] G: web run from `generated-web/` (`npx expo start --web` + service proxy) and mobile run from `generated-mobile/` (`npx expo run:android` + adb); **tracker log captured on both platforms with `META/ENABLED` confirmed**, viewer generated; step-by-step sub-verifications with evidence in `05-logs/`
+- [ ] H: every failure root-caused with **validated tracker evidence** (events + `ms`, not impressions); fixed in generated folder then in the codebase; **re-verified from a fresh capture on both platforms**; user confirmed; task closed
 
 **Always**
 

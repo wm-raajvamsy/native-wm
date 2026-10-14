@@ -134,4 +134,5 @@ Order does not matter and neither pass affects the other — but if the user onl
 - [ ] Web: transpile with `--profile="expo-web-preview"` → `<PROJECT>/generated-web`
 - [ ] Mobile: transpile with `--profile="expo-preview"` → `<PROJECT>/generated-mobile`
 - [ ] Generated folders re-checked **after**: fresh timestamps, and the actual change present in the output
+- [ ] **Perf/debug tracker patch verified on BOTH targets** — patch file + `require` + `WMPerf.enable` in `generated-web/App.js` and `generated-mobile/App.js`. Codegen rewrites `App.js` on every transpile, so the require is wiped by each generate and must be re-added (see `.claude/skills/perf-debug-tracker/`). Three OKs on both, or stop before running the app.
 - [ ] No `mvn`, no `ui-build.js` edits, no rename, no `target/` in this flow

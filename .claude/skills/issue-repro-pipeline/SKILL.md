@@ -20,6 +20,7 @@ Master orchestrator for `workflow.md` — read that file and follow it; this ski
 | App design | `.claude/skills/spec-to-app-design/` |
 | Local rn-app package (**mandatory** before generating) | `.claude/skills/generate-rn-app/` |
 | Generate web + mobile previews | `.claude/skills/build-web-mobile-previews/` |
+| Perf / debug tracker (**mandatory**) | `.claude/skills/perf-debug-tracker/` |
 
 `native_mobile/` and `common/` are **reference trees with no `SKILL.md`** — read the file you need, don't invoke them:
 
@@ -64,6 +65,7 @@ Master orchestrator for `workflow.md` — read that file and follow it; this ski
 - **`generate-rn-app` is mandatory** → `<LOCAL_CODEGEN>/dist/npm-packages/rn-app/`. Never a registry download. Silence from `generate rn-app` means it didn't run.
 - **Per-task re-checks:** codegen rebuilt after this task's edits? **rn-app regenerated after that rebuild** (it's built *from* codegen — otherwise transpile eats a stale package)? local runtime still consumed? generated folders present, and from when?
 - **No `ui-build.js` edits** — those paths are command-line arguments now.
+- **Tracker patch is MANDATORY before generating:** copy `perf-tracker/wm-performance-tracker.js` into `<PROJECT>/src/main/webapp/resources/files/`. See `.claude/skills/perf-debug-tracker/`.
 
 **E — Pages, then transpile twice.**
 1. Build pages from the B design by following `native_mobile/ui/screenshot-to-wavemaker/screenshot-to-wavemaker-mobile.md` (or the figma equivalent) **from its `STEP 2: Generate Variables` heading onward**, into the shared `src/main/webapp`.
@@ -81,6 +83,7 @@ Master orchestrator for `workflow.md` — read that file and follow it; this ski
 
    The output path is an argument, so each profile writes to its own folder — **no rename, no `target/`**. Maven's only job was running `ui-build.js`, which ends in exactly this command (`BlankApp/ui-build.js:316-323`); `applyPatchIfAvailable()` is a no-op unless the profile is `default` (`:249-252`).
 4. **Check the generated folders after** — fresh timestamps, and the change actually present in the generated source.
+5. **Verify the tracker patch on BOTH targets** — patch file + `require` + `WMPerf.enable` in `generated-web/App.js` *and* `generated-mobile/App.js`. Codegen rewrites `App.js` every transpile, so the require is wiped each time and must be re-added. Three OKs on both, or stop before Phase G.
 
 **F — Review + tests.** Review the diff against the A artifacts; write/update unit tests and get them green; grow `test-cases.md` if new runtime cases surfaced.
 
